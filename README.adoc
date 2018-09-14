@@ -30,7 +30,7 @@ Add the following jars inside of the `lib` directory of the Solr server footnote
 * metamorph (link:http://central.maven.org/maven2/org/metafacture/metafacture-framework/5.0.0/metamorph-5.0.0.jar[jar])
 * metamorph-api (link:http://central.maven.org/maven2/org/metafacture/metafacture-framework/5.0.0/metamorph-api-5.0.0.jar[jar])
 
-WARN: While an include of those libraries through a lib statement is not working
+WARNING: While an include of those libraries through a lib statement is not working
 (the required metamorph resource files could not be found), an inclusion
 of those libraries in the described lib directory works in some cases.
 
