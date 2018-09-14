@@ -1,0 +1,133 @@
+= solr-metamorph-entity-processor
+:toc:
+
+A add-on for the Apache Solr Data Import Handler.
+
+This project adds an entity processor that handles bibliographic records.
+It supports the link:https://github.com/metafacture/metafacture-core/wiki/Metamorph-User-Guide[metamorph] DSL for data
+extraction.
+
+== Installation
+
+----
+mvn package
+----
+
+Produces _solr-metamorph-entity-processor-VERSION-fat.jar_ in _target_ .
+
+=== Solr Integration
+
+_Assuming a fresh Solr installation._
+
+Place the fat jar in the _dist_ footnote:[The folder resides inside the root directory.]
+directory of your Solr installation.
+
+Add the following jars inside of the `lib` directory of the Solr server footnote:[The folder containing the _start.jar_, contains the referred _lib_ folder.].
+
+* metafacture-framework (link:http://central.maven.org/maven2/org/metafacture/metafacture-framework/5.0.0/metafacture-framework-5.0.0.jar[jar])
+* metafacture-commons (link:http://central.maven.org/maven2/org/metafacture/metafacture-framework/5.0.0/metafacture-commons-5.0.0.jar[jar])
+* metafacture-mangling (link:http://central.maven.org/maven2/org/metafacture/metafacture-mangling/5.0.0/metafacture-mangling-5.0.0.jar[jar])
+* metamorph (link:http://central.maven.org/maven2/org/metafacture/metafacture-framework/5.0.0/metamorph-5.0.0.jar[jar])
+* metamorph-api (link:http://central.maven.org/maven2/org/metafacture/metafacture-framework/5.0.0/metamorph-api-5.0.0.jar[jar])
+
+WARN: While an include of those libraries through a lib statement is not working
+(the required metamorph resource files could not be found), an inclusion
+of those libraries in the described lib directory works in some cases.
+
+NOTE: This solution is a temporary fix. The proper way should be the Solr Cloud
+link:https://lucene.apache.org/solr/guide/7_4/adding-custom-plugins-in-solrcloud-mode.html#AddingCustomPluginsinSolrCloudMode-SecuringRuntimeLibraries[Config API]
+that includes an option to add plugins during runtime.
+
+Enable the Data Import Handler and the processor by adding the following
+_lib_ statements to the `solrconfig.xml` of your _config set_:
+
+----
+<lib dir="${solr.install.dir:../../../..}/dist/" regex="solr-dataimporthandler-.*\.jar" />
+
+<lib dir="${solr.install.dir:../../../..}/dist/" regex="solr-metamorph-entity-processor-.*\.jar" />
+----
+
+Add the _/dataimport_ request handle to the `solrconfig.xml`:
+
+----
+  <requestHandler name="/dataimport" class="solr.DataImportHandler">
+    <lst name="defaults">
+      <str name="config">solr-data-config.xml</str>
+    </lst>
+  </requestHandler>
+----
+
+Configure the data import handler.
+A simple _solr-data-config.xml_ is included in the _examples_ directory.
+
+== Metamorph Entity Processor
+
+This MetamorphEntityProcessor reads all content from the data source on a record
+by record basis. This processor may handle compressed input streams,
+if the consumed data source is a _BinFileDataSource_.
+
+Each record is processed by a metafacture pipeline that uses metamorph to extract fields.
+
+The Metamorph Entity Processor has the following attributes:
+
+url::
+_Required._ A attribute that specifies the location of the input file in a way that is compatible with the configured data source.
+
+inputFormat::
+_Required._  The format supplied by the data source.
+
+Formats:::
+* pica
+* marc21
+
+morphDef::
+_Required._ The metamorph definition file that is used for field extraction.
+If the input is a list of files (separated by a comma), the data get passed
+from one metamorph file to another.
+
+includeFullRecord::
+An _optional_ attribute that adds the parsed record to the row within the `fullRecord` field.
+
+For example:
+
+[source,xml]
+----
+<entity name="morph"
+        processor="com.github.eberhardtj.solr.handler.dataimport.MetamorphEntityProcessor"
+        url="path/to/file.marc21"
+        inputFormat="marc21"
+        morphDef="path/to/morph.xml,path/to/other/morph.xml"
+        includeFullRecord="true"
+        onError="skip">
+  <field column="identifier" name="id"/>
+  <field column="fullRecord" name="fullRecord_s"/>
+</entity>
+----
+
+The used metamorph definitions:
+
+[source,xml]
+----
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- morph.xml -->
+<metamorph xmlns="http://www.culturegraph.org/metamorph" version="1">
+    <rules>
+        <data name="idn" source="001"/>
+    </rules>
+</metamorph>
+----
+
+[source,xml]
+----
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- other morph.xml -->
+<metamorph xmlns="http://www.culturegraph.org/metamorph" version="1">
+    <rules>
+        <data name="identifier" source="idn"/>
+    </rules>
+</metamorph>
+----
+
+== References
+
+* link:https://lucene.apache.org/solr/guide/7_4/uploading-structured-data-store-data-with-the-data-import-handler.html[Solr Ref Guide: Data Import Handler]
