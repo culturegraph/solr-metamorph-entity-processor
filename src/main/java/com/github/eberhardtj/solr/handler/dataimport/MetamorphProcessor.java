@@ -14,31 +14,29 @@ import java.util.Map;
 
 public class MetamorphProcessor {
     private String format;
-    private List<String> morphDefList;
-
+    private List<Metamorph> metamorphList;
     private DefaultObjectPipe<String, StreamReceiver> decoder;
     private RowCollector collector;
 
-    public MetamorphProcessor(String format, List<String> morphDefList) {
+    public MetamorphProcessor(String format, List<Metamorph> metamorphList) {
         this.format = format;
-        this.morphDefList = morphDefList;
+        this.metamorphList = metamorphList;
         this.collector = new RowCollector();
     }
 
     public void buildPipeline() {
         decoder = createDecoder(format);
 
-        if (morphDefList.isEmpty()) {
+        if (metamorphList.isEmpty()) {
             decoder.setReceiver(collector);
-        } else if (morphDefList.size() == 1) {
-            String morphDef = morphDefList.get(0);
-            Metamorph metamorph = new Metamorph(morphDef);
+        } else if (metamorphList.size() == 1) {
+            Metamorph metamorph = metamorphList.get(0);
             decoder.setReceiver(metamorph).setReceiver(collector);
         } else {
             StreamPipe<StreamReceiver> receiver = decoder.setReceiver(new ForwardingStreamPipe());
 
-            for (String morphDef: morphDefList) {
-                receiver = receiver.setReceiver(new Metamorph(morphDef));
+            for (Metamorph metamorph: metamorphList) {
+                receiver = receiver.setReceiver(metamorph);
             }
 
             receiver.setReceiver(collector);
