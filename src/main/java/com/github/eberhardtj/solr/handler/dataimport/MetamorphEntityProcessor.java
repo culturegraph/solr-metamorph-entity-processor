@@ -1,9 +1,15 @@
 package com.github.eberhardtj.solr.handler.dataimport;
 
 import com.github.eberhardtj.io.DecompressedInputStream;
+import org.apache.lucene.analysis.util.ResourceLoader;
+import org.apache.solr.core.SolrCore;
+import org.apache.solr.core.SolrResourceLoader;
 import org.apache.solr.handler.dataimport.Context;
 import org.apache.solr.handler.dataimport.DataImportHandlerException;
 import org.apache.solr.handler.dataimport.EntityProcessorBase;
+import org.metafacture.framework.MetafactureException;
+import org.metafacture.metamorph.InlineMorph;
+import org.metafacture.metamorph.Metamorph;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,10 +17,12 @@ import java.io.*;
 import java.lang.invoke.MethodHandles;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+
+import static org.apache.solr.handler.dataimport.DataImportHandlerException.wrapAndThrow;
 
 public class MetamorphEntityProcessor extends EntityProcessorBase {
 
@@ -36,7 +44,7 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
     public void init(Context context) {
         super.init(context);
 
-        // init a file format for the records we want to read
+        // init a file format for the records we want to loadMetamorph
         String inputFormat = context.getResolvedEntityAttribute(INPUT_FORMAT);
         if (inputFormat != null) {
             this.inputFormat = inputFormat;
@@ -46,21 +54,39 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
         }
 
         // init a metamorph definitions we want to use
-        List<String> morphDefList;
+        List<Metamorph> metamorphList = new ArrayList<>();
         String morphDefs = context.getResolvedEntityAttribute(MORPH_DEF);
         if (morphDefs != null) {
             morphDefs = context.replaceTokens(morphDefs);
-            String[] elements = morphDefs.split(",");
-            morphDefList = Arrays.stream(elements).collect(Collectors.toList());
+            String[] morphDefArr = morphDefs.split(",");
+            for (int i = 0; i < morphDefArr.length; i++) {
+                String morphDef = morphDefArr[i];
+                Metamorph metamorph;
+
+                final SolrCore core = context.getSolrCore();
+                if (core != null) {
+                    ResourceLoader loader = core.getResourceLoader();
+                    try {
+                        InputStream morphDefInputStream = loader.openResource(morphDef);
+                        metamorph = loadMetamorph(morphDefInputStream);
+                    } catch (IOException e) {
+                        String target = ((SolrResourceLoader) loader).resourceLocation(morphDef);
+                        throw new DataImportHandlerException(DataImportHandlerException.SEVERE, "'" + target + "' not readable", e);
+                    }
+                } else {
+                    metamorph = new Metamorph(morphDef);
+                }
+                metamorphList.add(metamorph);
+            }
         } else {
             throw new DataImportHandlerException(DataImportHandlerException.SEVERE,
                     "'" + MORPH_DEF + "' is a required attribute");
         }
 
-        url = context.getResolvedEntityAttribute(URL);
+        url = context.getResolvedEntityAttribute(DATASOURCE_URL);
         if (url == null) {
             throw new DataImportHandlerException(DataImportHandlerException.SEVERE,
-                    "'" + URL + "' is a required attribute");
+                    "'" + DATASOURCE_URL + "' is a required attribute");
         }
 
         // append processed record to the row
@@ -71,8 +97,20 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
             addRecord = false;
         }
 
-        processor = new MetamorphProcessor(inputFormat, morphDefList);
-        processor.buildPipeline();
+        if (processor == null) {
+            processor = new MetamorphProcessor(inputFormat, metamorphList);
+            processor.buildPipeline();
+        }
+    }
+
+    private Metamorph loadMetamorph(InputStream inputStream) {
+        BufferedReader br = new BufferedReader(new InputStreamReader(inputStream));
+        Iterator<String> iter = br.lines().filter(s -> !s.startsWith("<?")).iterator();
+        InlineMorph inline = InlineMorph.in(this);
+        while (iter.hasNext()) {
+            inline = inline.with(iter.next());
+        }
+        return inline.create();
     }
 
     private RecordReader createRecordReader(String format, Reader reader) {
@@ -122,27 +160,50 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
             recordReader = createRecordReader(inputFormat, reader);
         }
 
+        // end of input
         if (!recordReader.hasNext()) {
             closeResources();
             return null;
         }
 
-        String record = recordReader.next();
+        Map<String, Object> row = null;
+        while (recordReader.hasNext()) {
+            String record = recordReader.next();
 
-        log.info("Record: {}", record);
+            // end of input
+            if (record == null) {
+                break;
+            }
 
-        if (record == null) {
+            if (record.isEmpty()) {
+                continue;
+            }
+
+            try {
+                row = processor.process(record);
+            } catch (MetafactureException e) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Skipping record '{}', got '{}'.", record, e);
+                }
+
+                if (onError.equals(SKIP)) {
+                    continue;
+                } else {
+                    wrapAndThrow(DataImportHandlerException.SEVERE, e, "Unable to process record.");
+                }
+            }
+
+            if (addRecord) {
+                row.put("fullRecord", record);
+            }
+
+            break;
+        }
+
+        // end of input
+        if (row == null) {
             closeResources();
             return null;
-        }
-
-        if (record.isEmpty()) {
-            throw new DataImportHandlerException(DataImportHandlerException.SEVERE, "Problem empty record detected.");
-        }
-
-        Map<String, Object> row = processor.process(record);
-        if (addRecord) {
-            row.put("fullRecord", record);
         }
 
         return row;
@@ -188,5 +249,5 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
      * Holds the name of entity attribute that will be parsed to obtain
      * the filename.
      */
-    public static final String URL = "url";
+    public static final String DATASOURCE_URL = "url";
 }

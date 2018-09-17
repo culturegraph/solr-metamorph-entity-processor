@@ -13,10 +13,53 @@ import java.util.*;
 import java.util.zip.GZIPOutputStream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.*;
 
 @SuppressWarnings("unchecked")
 public class MetamorphEntityProcessorTest {
+    @Test
+    public void testSkipOnError() throws IOException {
+        /* we want to create the equiv of :
+         *  <entity name="morphed_record"
+         *          processor="MetamorphEntityProcessor"
+         *          url="test.mrc"
+         *          inputFormat="pica"
+         *          metamorph="morph.xml"
+         *          includeFullRecord="true"
+         *          onError="skip"
+         *          />
+         */
+
+        String marc21Record = loadMarc21Record();
+
+        Map attrs = createMap(
+                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/test.mrc",
+                MetamorphEntityProcessor.INPUT_FORMAT, "marc21",
+                MetamorphEntityProcessor.MORPH_DEF, "src/test-files/morph.xml",
+                MetamorphEntityProcessor.INCLUDE_FULL_RECORD, "true",
+                MetamorphEntityProcessor.ON_ERROR, MetamorphEntityProcessor.SKIP
+        );
+
+
+        Context ctx = getContext(
+                null,                      //parentEntity
+                new VariableResolver(),          //resolver
+                createReaderDataSource("tooShort\u001D" + marc21Record + "tooShort\u001D"),  //parentDataSource
+                Context.FULL_DUMP,               //currProcess
+                Collections.EMPTY_LIST,          //entityFields
+                attrs                            //entityAttrs
+        );
+
+        MetamorphEntityProcessor ep = new MetamorphEntityProcessor();
+        ep.init(ctx);
+
+        Map<String, Object> row = ep.nextRow();
+        assertThat(row, hasEntry("idn", "000000000"));
+        assertThat(row, hasEntry("type", "record"));
+        assertThat(row, hasEntry("fullRecord", marc21Record));
+        assertThat(ep.nextRow(), is(nullValue()));
+    }
+
     @Test
     public void testReaderSimple() throws IOException {
         /* we want to create the equiv of :
@@ -32,7 +75,7 @@ public class MetamorphEntityProcessorTest {
         String marc21Record = loadMarc21Record();
 
         Map attrs = createMap(
-                MetamorphEntityProcessor.URL, "src/test-files/test.mrc",
+                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/test.mrc",
                 MetamorphEntityProcessor.INPUT_FORMAT, "marc21",
                 MetamorphEntityProcessor.MORPH_DEF, "src/test-files/morph.xml",
                 MetamorphEntityProcessor.INCLUDE_FULL_RECORD, "true"
@@ -72,7 +115,7 @@ public class MetamorphEntityProcessorTest {
         String marc21Record = loadMarc21Record();
 
         Map attrs = createMap(
-                MetamorphEntityProcessor.URL, "src/test-files/test.mrc",
+                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/test.mrc",
                 MetamorphEntityProcessor.INPUT_FORMAT, "marc21",
                 MetamorphEntityProcessor.MORPH_DEF, "src/test-files/morph.xml",
                 MetamorphEntityProcessor.INCLUDE_FULL_RECORD, "true"
@@ -112,7 +155,7 @@ public class MetamorphEntityProcessorTest {
         String marc21Record = loadMarc21Record();
 
         Map attrs = createMap(
-                MetamorphEntityProcessor.URL, "src/test-files/test.mrc.gz",
+                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/test.mrc.gz",
                 MetamorphEntityProcessor.INPUT_FORMAT, "marc21",
                 MetamorphEntityProcessor.MORPH_DEF, "src/test-files/morph.xml",
                 MetamorphEntityProcessor.INCLUDE_FULL_RECORD, "true"
