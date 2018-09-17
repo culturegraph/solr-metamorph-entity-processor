@@ -13,30 +13,35 @@ extraction.
 mvn package
 ----
 
-Produces _solr-metamorph-entity-processor-VERSION-fat.jar_ in _target_ .
+Produces _solr-metamorph-entity-processor-VERSION.jar_ in _target_ .
 
 === Solr Integration
 
 _Assuming a fresh Solr installation._
 
-Place the fat jar in the _dist_ footnote:[The folder resides inside the root directory.]
+==== Metamorph Installation
+
+Copy the folders in `examples/server` into the `server` directory of your Solr installation.
+
+The following files will be added to the Solr server:
+
+* metamorph and its dependencies (into `lib`)
+* XSD schemata needed by metamorph (into `schemata`)
+* property files needed by metamorph (into `resources`)
+
+NOTE::
+This is a workaround.
+The proper way to include a third-party library to Solr is the `contrib` directory.
+A integration of Metamorph with the lib statement (see next section) failed due to
+missing schema and property files and not loadable classes.
+Adding those files directly to the server resolved the issue.
+
+==== Plugin Installation
+
+Place the jar in the _dist_ footnote:[The folder resides inside the root directory.]
 directory of your Solr installation.
 
-Add the following jars inside of the `lib` directory of the Solr server footnote:[The folder containing the _start.jar_, contains the referred _lib_ folder.].
-
-* metafacture-framework (link:http://central.maven.org/maven2/org/metafacture/metafacture-framework/5.0.0/metafacture-framework-5.0.0.jar[jar])
-* metafacture-commons (link:http://central.maven.org/maven2/org/metafacture/metafacture-framework/5.0.0/metafacture-commons-5.0.0.jar[jar])
-* metafacture-mangling (link:http://central.maven.org/maven2/org/metafacture/metafacture-mangling/5.0.0/metafacture-mangling-5.0.0.jar[jar])
-* metamorph (link:http://central.maven.org/maven2/org/metafacture/metafacture-framework/5.0.0/metamorph-5.0.0.jar[jar])
-* metamorph-api (link:http://central.maven.org/maven2/org/metafacture/metafacture-framework/5.0.0/metamorph-api-5.0.0.jar[jar])
-
-WARN: While an include of those libraries through a lib statement is not working
-(the required metamorph resource files could not be found), an inclusion
-of those libraries in the described lib directory works in some cases.
-
-NOTE: This solution is a temporary fix. The proper way should be the Solr Cloud
-link:https://lucene.apache.org/solr/guide/7_4/adding-custom-plugins-in-solrcloud-mode.html#AddingCustomPluginsinSolrCloudMode-SecuringRuntimeLibraries[Config API]
-that includes an option to add plugins during runtime.
+==== Data Import Handler Configuration
 
 Enable the Data Import Handler and the processor by adding the following
 _lib_ statements to the `solrconfig.xml` of your _config set_:
@@ -57,8 +62,19 @@ Add the _/dataimport_ request handle to the `solrconfig.xml`:
   </requestHandler>
 ----
 
-Configure the data import handler.
-A simple _solr-data-config.xml_ is included in the _examples_ directory.
+A example `solr-data-config.xml` is located in `examples/configsets/demo/conf`.
+
+==== Example Config Set
+
+The folder `examples/configsets` contains a modified version of the _default_ config set shipped with Solr.
+
+* `solrconfig.xml` with the data import handler enabled (see above).
+* `morph.xml` metamorph definition file that reads the field `001` and renames it to `idn`.
+* `solr-data-config.xml`:
+** A file list reader for the `/tmp` directory.
+** A marc21 entity processor that uses _morph.xml_ to process those files.
+
+A example file for the `/tmp` directory is located in `examples/tmp`.
 
 == Metamorph Entity Processor
 
@@ -84,9 +100,15 @@ morphDef::
 _Required._ The metamorph definition file that is used for field extraction.
 If the input is a list of files (separated by a comma), the data get passed
 from one metamorph file to another.
+Those files are located inside the config sets _conf_ directory.
 
 includeFullRecord::
 An _optional_ attribute that adds the parsed record to the row within the `fullRecord` field.
+
+onError::
+By default, the MetamorphEntityProcessor will stop processing documents if it finds one that generates an error.
+If you define _onError_ to "skip", the MetamorphEntityProcessor will instead skip documents that fail processing and
+log a debug message that the document was skipped.
 
 For example:
 
@@ -96,7 +118,7 @@ For example:
         processor="com.github.eberhardtj.solr.handler.dataimport.MetamorphEntityProcessor"
         url="path/to/file.marc21"
         inputFormat="marc21"
-        morphDef="path/to/morph.xml,path/to/other/morph.xml"
+        morphDef="morph.xml,morph2.xml"
         includeFullRecord="true"
         onError="skip">
   <field column="identifier" name="id"/>
@@ -120,13 +142,30 @@ The used metamorph definitions:
 [source,xml]
 ----
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- other morph.xml -->
+<!-- morph2.xml -->
 <metamorph xmlns="http://www.culturegraph.org/metamorph" version="1">
     <rules>
         <data name="identifier" source="idn"/>
     </rules>
 </metamorph>
 ----
+
+== Import
+
+Run a full-import:
+
+----
+curl -s http://localhost:1111/solr/demo/dataimport?command=full-import
+----
+
+Check status:
+
+----
+curl -s http://localhost:1111/solr/demo/dataimport?command=status
+----
+
+NOTE::
+The admin UI provides a link:https://lucene.apache.org/solr/guide/7_4/dataimport-screen.html[Dataimport Screen] .
 
 == References
 
