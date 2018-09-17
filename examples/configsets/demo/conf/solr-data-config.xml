@@ -1,3 +1,4 @@
+
 <dataConfig>
     <dataSource type="BinFileDataSource"/>
     <document>
@@ -7,13 +8,13 @@
                 recursive="false"
                 rootEntity="false"
                 dataSource="null"
-                baseDir="path/to/baseDir">
+                baseDir="/tmp">
 
             <entity name="morph"
                     processor="com.github.eberhardtj.solr.handler.dataimport.MetamorphEntityProcessor"
                     url="${file.fileAbsolutePath}"
                     inputFormat="marc21"
-                    morphDef="${solr.install.dir}\contrib\metamorph\morph.xml"
+                    morphDef="morph.xml"
                     includeFullRecord="true"
                     onError="skip">
                 <field column="idn" name="id"/>
