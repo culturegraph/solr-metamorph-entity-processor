@@ -181,7 +181,7 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
 
             try {
                 row = processor.process(record);
-            } catch (MetafactureException e) {
+            } catch (Exception e) {
                 if (log.isDebugEnabled()) {
                     log.debug("Skipping record '{}', got '{}'.", record, e);
                 }
