@@ -7,7 +7,6 @@ import org.apache.solr.core.SolrResourceLoader;
 import org.apache.solr.handler.dataimport.Context;
 import org.apache.solr.handler.dataimport.DataImportHandlerException;
 import org.apache.solr.handler.dataimport.EntityProcessorBase;
-import org.metafacture.framework.MetafactureException;
 import org.metafacture.metamorph.InlineMorph;
 import org.metafacture.metamorph.Metamorph;
 import org.slf4j.Logger;
@@ -131,7 +130,7 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
     @Override
     public Map<String, Object> nextRow() {
 
-        if (recordReader == null) {
+        if (reader == null) {
             Object data = context.getDataSource().getData(url);
             Reader dataSourceReader = null;
 
@@ -219,6 +218,7 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
             }
         }
         reader = null;
+        recordReader = null;
     }
 
     @Override
