@@ -61,14 +61,19 @@ public class RowCollectorTest {
         assertThat(row.get("name"), equalTo("b"));
     }
 
-    @Test(expected = MetafactureException.class)
-    public void complainAboutEntity() {
+    @Test
+    public void prefixLiteralNameWithEntityName() {
         RowCollector collector = new RowCollector();
-        collector.startRecord("1");
-        collector.startEntity("entity");
-        collector.literal("name", "name1");
-        collector.literal("name", "name2");
+        collector.startRecord("Record");
+        collector.startEntity("Entity");
+        collector.literal("literal1", "name1");
+        collector.literal("literal2", "name2");
         collector.endEntity();
         collector.endRecord();
+
+        Map<String,Object> row = collector.getRow();
+
+        assertThat(row.containsKey("entityLiteral1"), equalTo(true));
+        assertThat(row.containsKey("entityLiteral2"), equalTo(true));
     }
 }

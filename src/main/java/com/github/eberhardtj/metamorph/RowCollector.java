@@ -11,9 +11,11 @@ import java.util.Map;
 public class RowCollector implements StreamReceiver {
 
     private Map<String,Object> row;
+    private String currentEntity;
 
     public RowCollector() {
         this.row = new HashMap<>();
+        this.currentEntity = "";
     }
 
     @Override
@@ -28,6 +30,7 @@ public class RowCollector implements StreamReceiver {
 
     private void reset() {
         row = new HashMap<>();
+        currentEntity = "";
     }
 
     public Map<String,Object> getRow() {
@@ -47,19 +50,26 @@ public class RowCollector implements StreamReceiver {
 
     @Override
     public void startEntity(String s) {
-        throw new MetafactureException("Entities are not supported!");
+        currentEntity = s;
     }
 
     @Override
     public void endEntity() {
-        throw new MetafactureException("Entities are not supported!");
+        currentEntity = "";
+    }
+
+    private String camelCase(String prefix, String name) {
+        return prefix.toLowerCase() + name.substring(0, 1).toUpperCase() + name.substring(1);
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public void literal(String name, String value) {
-        if (row.containsKey(name)) {
-            Object existing = row.get(name);
+
+        String literalName = currentEntity.isEmpty() ? name : camelCase(currentEntity, name);
+
+        if (row.containsKey(literalName)) {
+            Object existing = row.get(literalName);
             if (existing instanceof List) {
                 List list = (List) existing;
                 list.add(value);
@@ -67,10 +77,10 @@ public class RowCollector implements StreamReceiver {
                 List list = new ArrayList();
                 list.add(existing);
                 list.add(value);
-                row.put(name, list);
+                row.put(literalName, list);
             }
         } else {
-            row.put(name, value);
+            row.put(literalName, value);
         }
     }
 }

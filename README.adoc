@@ -170,3 +170,43 @@ The admin UI provides a link:https://lucene.apache.org/solr/guide/7_4/dataimport
 == References
 
 * link:https://lucene.apache.org/solr/guide/7_4/uploading-structured-data-store-data-with-the-data-import-handler.html[Solr Ref Guide: Data Import Handler]
+
+== Appendix
+
+=== Metamorph IR To Row Conversion
+
+A record processed by metamorph will be transformed into a intermediate representation (IR)
+that consists of the following elements:
+
+* Record
+* Entity
+* Literal
+
+A row processed by Solr is a map that consists of key-value or key-list pairs.
+
+.IR
+----
+startRecord("001")
+literal("date", "20181001")
+startEntity("person")
+literal("lastname", "Unkown")
+endEntity()
+literal("cat", "human")
+literal("cat", "person")
+endRecord()
+----
+
+.Row in Json Format
+----
+{
+  "date": "20181001"
+  "cat": ["human", "person"]
+  "personLastname": "Unkown"
+}
+----
+
+The following rules are applied to convert a _IR_ to a _Row_:
+
+* Record id will be ignored
+* Repetitive literals with the same name form a list
+* Literal names in entities are prefixed with the entity name in CamelCase
