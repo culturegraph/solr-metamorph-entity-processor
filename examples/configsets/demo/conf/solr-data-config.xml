@@ -11,7 +11,7 @@
                 baseDir="/tmp">
 
             <entity name="morph"
-                    processor="com.github.eberhardtj.solr.handler.dataimport.MetamorphEntityProcessor"
+                    processor="org.culturegraph.solr.handler.dataimport.MetamorphEntityProcessor"
                     url="${file.fileAbsolutePath}"
                     inputFormat="marc21"
                     morphDef="morph.xml"
