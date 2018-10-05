@@ -118,7 +118,7 @@ For example:
 [source,xml]
 ----
 <entity name="morph"
-        processor="com.github.eberhardtj.solr.handler.dataimport.MetamorphEntityProcessor"
+        processor="org.culturegraph.solr.handler.dataimport.MetamorphEntityProcessor"
         url="path/to/file.marc21"
         inputFormat="marc21"
         morphDef="morph.xml,morph2.xml"
