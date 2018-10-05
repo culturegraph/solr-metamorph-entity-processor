@@ -8,6 +8,7 @@ import org.apache.solr.core.SolrResourceLoader;
 import org.apache.solr.handler.dataimport.Context;
 import org.apache.solr.handler.dataimport.DataImportHandlerException;
 import org.apache.solr.handler.dataimport.EntityProcessorBase;
+import org.culturegraph.plugin.io.Marc21Preprocessor;
 import org.metafacture.metamorph.InlineMorph;
 import org.metafacture.metamorph.Metamorph;
 import org.slf4j.Logger;
@@ -116,7 +117,7 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
     private Iterator<String> createRecordReader(String format, Reader reader) {
         switch (format.toLowerCase()) {
             case "marc21":
-                return new ChunkRecordReader(reader, "\u001D");
+                return new Marc21Preprocessor(new ChunkRecordReader(reader, "\u001D"));
             default:
                 return new BufferedReader(reader).lines().iterator();
         }
