@@ -54,7 +54,7 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
                     "'" + INPUT_FORMAT + "' is a required attribute");
         }
 
-        // init a metamorph definitions we want to use
+        // Init the metamorph definitions we want to use
         List<Metamorph> metamorphList = new ArrayList<>();
         String morphDefs = context.getResolvedEntityAttribute(MORPH_DEF);
         if (morphDefs != null) {
