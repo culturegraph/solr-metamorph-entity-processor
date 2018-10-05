@@ -1,6 +1,7 @@
 package org.culturegraph.solr.handler.dataimport;
 
-import com.github.eberhardtj.io.DecompressedInputStream;
+import org.culturegraph.plugin.io.ChunkRecordReader;
+import org.culturegraph.plugin.io.DecompressedInputStream;
 import org.apache.lucene.analysis.util.ResourceLoader;
 import org.apache.solr.core.SolrCore;
 import org.apache.solr.core.SolrResourceLoader;
@@ -34,7 +35,7 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
     private MetamorphProcessor processor;
 
     private Reader reader;
-    private RecordReader recordReader;
+    private Iterator<String> recordReader;
 
     /**
      * Parses each of the entity attributes.
@@ -112,12 +113,12 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
         return inline.create();
     }
 
-    private RecordReader createRecordReader(String format, Reader reader) {
+    private Iterator<String> createRecordReader(String format, Reader reader) {
         switch (format.toLowerCase()) {
             case "marc21":
-                return new RawRecordReader(reader);
+                return new ChunkRecordReader(reader, "\u001D");
             default:
-                return (RecordReader) new BufferedReader(reader).lines().iterator();
+                return new BufferedReader(reader).lines().iterator();
         }
     }
 
