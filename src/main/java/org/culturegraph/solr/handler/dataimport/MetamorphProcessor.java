@@ -1,6 +1,6 @@
-package com.github.eberhardtj.solr.handler.dataimport;
+package org.culturegraph.solr.handler.dataimport;
 
-import com.github.eberhardtj.metamorph.RowCollector;
+import org.culturegraph.plugin.metamorph.RowCollector;
 import org.metafacture.biblio.marc21.Marc21Decoder;
 import org.metafacture.biblio.pica.PicaDecoder;
 import org.metafacture.framework.StreamPipe;

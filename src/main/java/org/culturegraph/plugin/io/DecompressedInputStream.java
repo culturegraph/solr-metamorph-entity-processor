@@ -1,4 +1,4 @@
-package com.github.eberhardtj.io;
+package org.culturegraph.plugin.io;
 
 import java.io.*;
 import java.util.zip.GZIPInputStream;

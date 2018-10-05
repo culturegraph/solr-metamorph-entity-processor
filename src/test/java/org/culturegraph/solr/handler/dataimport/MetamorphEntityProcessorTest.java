@@ -1,4 +1,4 @@
-package com.github.eberhardtj.solr.handler.dataimport;
+package org.culturegraph.solr.handler.dataimport;
 
 import org.apache.solr.common.util.Utils;
 import org.apache.solr.core.SolrCore;

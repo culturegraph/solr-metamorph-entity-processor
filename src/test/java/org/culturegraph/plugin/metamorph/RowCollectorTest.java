@@ -1,7 +1,6 @@
-package com.github.eberhardtj.metamorph;
+package org.culturegraph.plugin.metamorph;
 
 import org.junit.Test;
-import org.metafacture.framework.MetafactureException;
 
 import java.util.List;
 import java.util.Map;

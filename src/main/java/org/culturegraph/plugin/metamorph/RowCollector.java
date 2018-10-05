@@ -1,6 +1,5 @@
-package com.github.eberhardtj.metamorph;
+package org.culturegraph.plugin.metamorph;
 
-import org.metafacture.framework.MetafactureException;
 import org.metafacture.framework.StreamReceiver;
 
 import java.util.ArrayList;

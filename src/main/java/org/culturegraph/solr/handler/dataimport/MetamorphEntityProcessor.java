@@ -1,4 +1,4 @@
-package com.github.eberhardtj.solr.handler.dataimport;
+package org.culturegraph.solr.handler.dataimport;
 
 import com.github.eberhardtj.io.DecompressedInputStream;
 import org.apache.lucene.analysis.util.ResourceLoader;

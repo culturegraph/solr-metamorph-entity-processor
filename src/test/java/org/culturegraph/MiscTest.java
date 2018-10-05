@@ -1,4 +1,4 @@
-package com.github.eberhardtj;
+package org.culturegraph;
 
 import org.junit.Test;
 
