@@ -93,8 +93,11 @@ inputFormat::
 _Required._  The format supplied by the data source.
 
 Formats:::
-* pica
 * marc21
+** Pre-processing records by replacing _newline_ and _carriage return_ with a space
+* default
+** No pre-processing
+** One record per line
 
 morphDef::
 _Required._ The metamorph definition file that is used for field extraction.
@@ -196,11 +199,11 @@ literal("cat", "person")
 endRecord()
 ----
 
-.Row in Json Format
+.Row (Represented as JSON)
 ----
 {
-  "date": "20181001"
   "cat": ["human", "person"]
+  "date": "20181001"
   "personLastname": "Unkown"
 }
 ----
@@ -208,5 +211,5 @@ endRecord()
 The following rules are applied to convert a _IR_ to a _Row_:
 
 * Record id will be ignored
-* Repetitive literals with the same name form a list
+* Literals with the same name form a list
 * Literal names in entities are prefixed with the entity name in CamelCase
