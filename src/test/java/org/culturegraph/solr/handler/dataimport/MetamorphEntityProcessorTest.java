@@ -22,7 +22,7 @@ public class MetamorphEntityProcessorTest {
         /* we want to create the equiv of :
          *  <entity name="morphed_record"
          *          processor="MetamorphEntityProcessor"
-         *          url="test.mrc"
+         *          url="record.mrc"
          *          inputFormat="marc"
          *          metamorph="morph.xml"
          *          includeFullRecord="true"
@@ -33,7 +33,7 @@ public class MetamorphEntityProcessorTest {
         String marc21Record = loadMarc21Record();
 
         Map attrs = createMap(
-                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/test.mrc",
+                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/record.mrc",
                 MetamorphEntityProcessor.INPUT_FORMAT, "marc21",
                 MetamorphEntityProcessor.MORPH_DEF, "src/test-files/morph.xml",
                 MetamorphEntityProcessor.INCLUDE_FULL_RECORD, "true",
@@ -61,11 +61,11 @@ public class MetamorphEntityProcessorTest {
     }
 
     @Test
-    public void testReaderSimple() throws IOException {
+    public void shouldReadMarcRecordFromReader() throws IOException {
         /* we want to create the equiv of :
          *  <entity name="morphed_record"
          *          processor="MetamorphEntityProcessor"
-         *          url="test.mrc"
+         *          url="record.mrc"
          *          inputFormat="marc"
          *          metamorph="morph.xml"
          *          includeFullRecord="true"
@@ -75,7 +75,7 @@ public class MetamorphEntityProcessorTest {
         String marc21Record = loadMarc21Record();
 
         Map attrs = createMap(
-                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/test.mrc",
+                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/record.mrc",
                 MetamorphEntityProcessor.INPUT_FORMAT, "marc21",
                 MetamorphEntityProcessor.MORPH_DEF, "src/test-files/morph.xml",
                 MetamorphEntityProcessor.INCLUDE_FULL_RECORD, "true"
@@ -101,11 +101,11 @@ public class MetamorphEntityProcessorTest {
     }
 
     @Test
-    public void testInputStreamSimple() throws IOException {
+    public void shouldReadFromMarcRecordFromInputStream() throws IOException {
         /* we want to create the equiv of :
          *  <entity name="morphed_record"
          *          processor="MetamorphEntityProcessor"
-         *          url="test.mrc"
+         *          url="record.mrc"
          *          inputFormat="marc"
          *          metamorph="morph.xml"
          *          includeFullRecord="true"
@@ -115,7 +115,7 @@ public class MetamorphEntityProcessorTest {
         String marc21Record = loadMarc21Record();
 
         Map attrs = createMap(
-                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/test.mrc",
+                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/record.mrc",
                 MetamorphEntityProcessor.INPUT_FORMAT, "marc21",
                 MetamorphEntityProcessor.MORPH_DEF, "src/test-files/morph.xml",
                 MetamorphEntityProcessor.INCLUDE_FULL_RECORD, "true"
@@ -141,11 +141,11 @@ public class MetamorphEntityProcessorTest {
     }
 
     @Test
-    public void testCompressedInputStreamSimple() throws IOException {
+    public void shouldReadMarcRecordFromCompressedInputStream() throws IOException {
         /* we want to create the equiv of :
          *  <entity name="morphed_record"
          *          processor="MetamorphEntityProcessor"
-         *          url="test.mrc"
+         *          url="record.mrc"
          *          inputFormat="marc"
          *          metamorph="morph.xml"
          *          includeFullRecord="true"
@@ -155,7 +155,7 @@ public class MetamorphEntityProcessorTest {
         String marc21Record = loadMarc21Record();
 
         Map attrs = createMap(
-                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/test.mrc.gz",
+                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/record.mrc.gz",
                 MetamorphEntityProcessor.INPUT_FORMAT, "marc21",
                 MetamorphEntityProcessor.MORPH_DEF, "src/test-files/morph.xml",
                 MetamorphEntityProcessor.INCLUDE_FULL_RECORD, "true"
@@ -178,6 +178,86 @@ public class MetamorphEntityProcessorTest {
         assertThat(row, hasEntry("idn", "000000000"));
         assertThat(row, hasEntry("type", "record"));
         assertThat(row, hasEntry("fullRecord", marc21Record));
+    }
+
+    @Test
+    public void shouldReadMarcXmlFromInputStream() throws IOException {
+        /* we want to create the equiv of :
+         *  <entity name="morphed_record"
+         *          processor="MetamorphEntityProcessor"
+         *          url="record.xml"
+         *          inputFormat="marcxml"
+         *          metamorph="morph.xml"
+         *          includeFullRecord="true"
+         *          />
+         */
+
+        String marcxml = loadMarcXmlRecord();
+
+        Map attrs = createMap(
+                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/record.xml",
+                MetamorphEntityProcessor.INPUT_FORMAT, "marcxml",
+                MetamorphEntityProcessor.MORPH_DEF, "src/test-files/morph.xml",
+                MetamorphEntityProcessor.INCLUDE_FULL_RECORD, "true"
+        );
+
+
+        Context ctx = getContext(
+                null,                      //parentEntity
+                new VariableResolver(),          //resolver
+                createInputStreamDataSource(marcxml),  //parentDataSource
+                Context.FULL_DUMP,               //currProcess
+                Collections.EMPTY_LIST,          //entityFields
+                attrs                            //entityAttrs
+        );
+
+        MetamorphEntityProcessor ep = new MetamorphEntityProcessor();
+        ep.init(ctx);
+
+        Map<String, Object> row = ep.nextRow();
+        assertThat(row, hasEntry("idn", "000000000"));
+        assertThat(row, hasEntry("type", "record"));
+        assertThat(row, hasEntry("fullRecord", loadMarc21Record()));
+    }
+
+    @Test
+    public void shouldReadMarcXmlFromCompressedInputStream() throws IOException {
+        /* we want to create the equiv of :
+         *  <entity name="morphed_record"
+         *          processor="MetamorphEntityProcessor"
+         *          url="record.xml.gz"
+         *          inputFormat="marcxml"
+         *          metamorph="morph.xml"
+         *          includeFullRecord="true"
+         *          />
+         */
+
+        String marcxml = loadMarcXmlRecord();
+
+        Map attrs = createMap(
+                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/record.xml.gz",
+                MetamorphEntityProcessor.INPUT_FORMAT, "marcxml",
+                MetamorphEntityProcessor.MORPH_DEF, "src/test-files/morph.xml",
+                MetamorphEntityProcessor.INCLUDE_FULL_RECORD, "true"
+        );
+
+
+        Context ctx = getContext(
+                null,                      //parentEntity
+                new VariableResolver(),          //resolver
+                createCompressedInputStreamDataSource(marcxml),  //parentDataSource
+                Context.FULL_DUMP,               //currProcess
+                Collections.EMPTY_LIST,          //entityFields
+                attrs                            //entityAttrs
+        );
+
+        MetamorphEntityProcessor ep = new MetamorphEntityProcessor();
+        ep.init(ctx);
+
+        Map<String, Object> row = ep.nextRow();
+        assertThat(row, hasEntry("idn", "000000000"));
+        assertThat(row, hasEntry("type", "record"));
+        assertThat(row, hasEntry("fullRecord", loadMarc21Record()));
     }
 
     /**
@@ -434,7 +514,12 @@ public class MetamorphEntityProcessorTest {
     }
 
     public String loadMarc21Record() throws IOException {
-        byte[] bytes = Files.readAllBytes(Paths.get("src/test-files/test.mrc"));
+        byte[] bytes = Files.readAllBytes(Paths.get("src/test-files/record.mrc"));
+        return new String(bytes, StandardCharsets.UTF_8);
+    }
+
+    public String loadMarcXmlRecord() throws IOException {
+        byte[] bytes = Files.readAllBytes(Paths.get("src/test-files/record.xml"));
         return new String(bytes, StandardCharsets.UTF_8);
     }
 }
