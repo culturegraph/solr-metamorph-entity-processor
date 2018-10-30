@@ -1,0 +1,26 @@
+
+<dataConfig>
+    <dataSource type="BinFileDataSource"/>
+    <document>
+        <entity name="file"
+                processor="FileListEntityProcessor"
+                fileName=".*.mrc$"
+                recursive="false"
+                rootEntity="false"
+                dataSource="null"
+                baseDir="/tmp">
+
+            <entity name="morph"
+                    processor="org.culturegraph.solr.handler.dataimport.MetamorphEntityProcessor"
+                    url="${file.fileAbsolutePath}"
+                    inputFormat="marc21"
+                    morphDef="morph.xml"
+                    includeFullRecord="true"
+                    onError="skip">
+                <field column="idn" name="id"/>
+                <field column="fullRecord" name="fullRecord_s"/>
+            </entity>
+
+        </entity>
+    </document>
+</dataConfig>
