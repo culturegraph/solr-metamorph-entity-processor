@@ -9,37 +9,61 @@ extraction.
 
 == Installation
 
+=== Build Plugin
+
 ----
 mvn package
 ----
 
-Produces _solr-metamorph-entity-processor-VERSION.jar_ in _target_ .
+Produces _solr-metamorph-entity-processor-VERSION-fat.jar_ in _target_ .
 
-=== Solr Integration
+=== Integrate Plugin into Solr
 
 _Assuming a fresh Solr installation._
 
-==== Metamorph Installation
+* Download the link:http://lucene.apache.org/solr/mirrors-solr-latest-redir.html[latest] version
+* Unzip
+* Directory of your Solr installation is `solr-VERSION` (e.g. solr-7.4.0)
 
-Copy the folders in `examples/server` into the `server` directory of your Solr installation.
+A list of Solr directories:
 
-The following files will be added to the Solr server:
+[cols="1,3,2"]
+|====
+| Name | Location | Example
 
-* metamorph and its dependencies (into `lib`)
-* XSD schemata needed by metamorph (into `schemata`)
-* property files needed by metamorph (into `resources`)
+| SOLR_ROOT
+| Path to the unpacked solr distribution
+| /opt/solr-7.4.0
+
+| SOLR_SERVER_DIR
+| SOLR_ROOT/server
+| /opt/solr-7.4.0/server
+
+| SOLR_HOME
+| SOLR_ROOT/server/solr
+| /opt/solr-7.4.0/server/solr
+
+|====
+
+==== Include Metamorph Dependencies
+
+* Copy directory `setup/contrib/metafacture` into `SOLR_SERVER_DIR/lib`.
 
 NOTE::
 This is a workaround.
-The proper way to include a third-party library to Solr is the `contrib` directory.
-A integration of Metamorph with the lib statement (see next section) failed due to
+The proper way to include a third-party library to Solr is the `SOLR_ROOT/contrib` directory.
+A integration of Metamorph with the lib statement failed due to
 missing schema and property files and not loadable classes.
-Adding those files directly to the server resolved the issue.
+Adding those files directly to the server lib resolved the issue.
+
+* Add files in `setup/resources` to `SOLR_SERVER_DIR/resources`
+* Add files in `setup/schemata` to `SOLR_SERVER_DIR/schemata`
+
+
 
 ==== Plugin Installation
 
-Place the jar in the _dist_ footnote:[The folder resides inside the root directory.]
-directory of your Solr installation.
+Copy file `target/solr-metamorph-entity-processor-VERSION.jar` into `SOLR_ROOT/dist`.
 
 ==== Data Import Handler Configuration
 
@@ -50,6 +74,10 @@ _lib_ statements to the `solrconfig.xml` of your _config set_:
 <lib dir="${solr.install.dir:../../../..}/dist/" regex="solr-dataimporthandler-.*\.jar" />
 
 <lib dir="${solr.install.dir:../../../..}/dist/" regex="solr-metamorph-entity-processor-.*\.jar" />
+
+<!-- Does not work yet. Quickfix: Copy 'contrib/metafature' into 'server/lib'.
+<lib dir="${solr.install.dir:../../../..}/contrib/metafacture/lib" regex=".*\.jar" />
+-->
 ----
 
 Add the _/dataimport_ request handle to the `solrconfig.xml`:
@@ -62,19 +90,19 @@ Add the _/dataimport_ request handle to the `solrconfig.xml`:
   </requestHandler>
 ----
 
-A example `solr-data-config.xml` is located in `examples/configsets/demo/conf`.
+A example `solr-data-config.xml` is located in `setup/server/solr/configsets/demo/conf`.
 
 ==== Example Config Set
 
-The folder `examples/configsets` contains a modified version of the _default_ config set shipped with Solr.
+The folder `setup/server/solr/configsets` contains a modified version of the _default_ config set shipped with Solr 7.4.0 .
 
 * `solrconfig.xml` with the data import handler enabled (see above).
 * `morph.xml` metamorph definition file that reads the field `001` and renames it to `idn`.
 * `solr-data-config.xml`:
-** A file list reader for the `/tmp` directory.
+** A file list reader for all `*.mrc.gz` files in the `/tmp` directory.
 ** A marc21 entity processor that uses _morph.xml_ to process those files.
 
-A example file for the `/tmp` directory is located in `examples/tmp`.
+A example file for the `/tmp` directory is located in `setup/tmp`.
 
 == Metamorph Entity Processor
 
@@ -89,24 +117,26 @@ The Metamorph Entity Processor has the following attributes:
 url::
 _Required._ A attribute that specifies the location of the input file in a way that is compatible with the configured data source.
 
-inputFormat::
+format::
 _Required._  The format supplied by the data source.
 
-Formats:::
+Supported Formats:::
 * marc21
 ** Pre-processing records by replacing _newline_ and _carriage return_ with a space
-* default
-** No pre-processing
-** One record per line
+* marcxml
+** Pre-processing records by converting marcxml into marc21 and using the marc21 pre-processing (see above).
+** Implicit field _fullRecord_ contains the MARC21 representation of the record.
 
 morphDef::
-_Required._ The metamorph definition file that is used for field extraction.
+_Required._ The metamorph definition files that are used for field extraction.
+Each extracted field is added as a implicit field.
 If the input is a list of files (separated by a comma), the data get passed
 from one metamorph file to another.
-Those files are located inside the config sets _conf_ directory.
+Those files are located inside the config set's _conf_ directory.
 
 includeFullRecord::
-An _optional_ attribute that adds the parsed record to the row within the `fullRecord` field.
+An _optional_ attribute that adds the received record to the implicit field `fullRecord`.
+The attribute is a boolean value (true or false), that is false by default.
 
 onError::
 By default, the MetamorphEntityProcessor will stop processing documents if it finds one that generates an error.
@@ -167,6 +197,12 @@ Check status:
 curl -s http://localhost:1111/solr/demo/dataimport?command=status
 ----
 
+Commit:
+
+----
+curl -s http://localhost:1111/solr/demo/update?commit=true
+----
+
 NOTE::
 The admin UI provides a link:https://lucene.apache.org/solr/guide/7_4/dataimport-screen.html[Dataimport Screen] .
 
@@ -213,3 +249,65 @@ The following rules are applied to convert a _IR_ to a _Row_:
 * Record id will be ignored
 * Literals with the same name form a list
 * Literal names in entities are prefixed with the entity name in CamelCase
+
+== Known Issues
+
+=== Schemata not found
+
+Issue:
+
+The schemata needed by the metamorph module are not found.
+
+Fix:
+
+* Add metafacture and metamorph dependencies to `SOLR_SERVER_DIR/lib`
+* Add metamorph resources to `SOLR_SERVER_DIR/resources`
+* Add metamorph schemata to `SOLR_SERVER_DIR/schemata`
+
+Error Message:
+
+----
+2018-10-16 15:19:15.199 ERROR (Thread-13) [   ] o.a.s.h.d.DataImporter Full Import failed:java.lang.RuntimeException: java.lang.RuntimeException: org.apache.solr.handler.dataimport.DataImportHandlerException: org.metafacture.metamorph.MetamorphException: Error while building the Metamorph transformation pipeline: 'schemata/metamorph.xsd' not found:
+	at org.apache.solr.handler.dataimport.DocBuilder.execute(DocBuilder.java:271)
+	at org.apache.solr.handler.dataimport.DataImporter.doFullImport(DataImporter.java:424)
+	at org.apache.solr.handler.dataimport.DataImporter.runCmd(DataImporter.java:483)
+	at org.apache.solr.handler.dataimport.DataImporter.lambda$runAsync$0(DataImporter.java:466)
+	at java.lang.Thread.run(Thread.java:745)
+Caused by: java.lang.RuntimeException: org.apache.solr.handler.dataimport.DataImportHandlerException: org.metafacture.metamorph.MetamorphException: Error while building the Metamorph transformation pipeline: 'schemata/metamorph.xsd' not found:
+	at org.apache.solr.handler.dataimport.DocBuilder.buildDocument(DocBuilder.java:417)
+	at org.apache.solr.handler.dataimport.DocBuilder.doFullDump(DocBuilder.java:330)
+	at org.apache.solr.handler.dataimport.DocBuilder.execute(DocBuilder.java:233)
+	... 4 more
+Caused by: org.apache.solr.handler.dataimport.DataImportHandlerException: org.metafacture.metamorph.MetamorphException: Error while building the Metamorph transformation pipeline: 'schemata/metamorph.xsd' not found:
+	at org.apache.solr.handler.dataimport.DocBuilder.buildDocument(DocBuilder.java:562)
+	at org.apache.solr.handler.dataimport.DocBuilder.buildDocument(DocBuilder.java:415)
+	... 6 more
+Caused by: org.metafacture.metamorph.MetamorphException: Error while building the Metamorph transformation pipeline: 'schemata/metamorph.xsd' not found:
+	at org.metafacture.metamorph.Metamorph.buildPipeline(Metamorph.java:183)
+	at org.metafacture.metamorph.Metamorph.<init>(Metamorph.java:171)
+	at org.metafacture.metamorph.Metamorph.<init>(Metamorph.java:162)
+	at org.metafacture.metamorph.Metamorph.<init>(Metamorph.java:158)
+	at org.metafacture.metamorph.InlineMorph.create(InlineMorph.java:143)
+	at org.culturegraph.solr.handler.dataimport.MetamorphEntityProcessor.loadMetamorph(MetamorphEntityProcessor.java:122)
+	at org.culturegraph.solr.handler.dataimport.MetamorphEntityProcessor.init(MetamorphEntityProcessor.java:80)
+	at org.apache.solr.handler.dataimport.EntityProcessorWrapper.init(EntityProcessorWrapper.java:77)
+	at org.apache.solr.handler.dataimport.DocBuilder.buildDocument(DocBuilder.java:434)
+	at org.apache.solr.handler.dataimport.DocBuilder.buildDocument(DocBuilder.java:517)
+	... 7 more
+Caused by: org.metafacture.framework.MetafactureException: 'schemata/metamorph.xsd' not found:
+	at org.metafacture.metamorph.xml.DomLoader.getSchemaUrl(DomLoader.java:115)
+	at org.metafacture.metamorph.xml.DomLoader.loadSchema(DomLoader.java:105)
+	at org.metafacture.metamorph.xml.DomLoader.createXmlFilterPipeline(DomLoader.java:93)
+	at org.metafacture.metamorph.xml.DomLoader.parse(DomLoader.java:69)
+	at org.metafacture.metamorph.AbstractMetamorphDomWalker.walk(AbstractMetamorphDomWalker.java:108)
+	at org.metafacture.metamorph.AbstractMetamorphDomWalker.walk(AbstractMetamorphDomWalker.java:104)
+	at org.metafacture.metamorph.Metamorph.buildPipeline(Metamorph.java:179)
+	... 16 more
+Caused by: java.net.MalformedURLException: no protocol: schemata/metamorph.xsd
+	at java.net.URL.<init>(URL.java:593)
+	at java.net.URL.<init>(URL.java:490)
+	at java.net.URL.<init>(URL.java:439)
+	at org.metafacture.commons.ResourceUtil.getUrl(ResourceUtil.java:144)
+	at org.metafacture.metamorph.xml.DomLoader.getSchemaUrl(DomLoader.java:113)
+	... 22 more
+----
