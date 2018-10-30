@@ -1,10 +1,22 @@
 package org.culturegraph.solr.handler.dataimport;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
+import org.culturegraph.plugin.io.MarcConverter;
+import org.culturegraph.plugin.io.ChunkReader;
+import org.culturegraph.plugin.io.DecompressedInputStream;
+import org.apache.lucene.analysis.util.ResourceLoader;
+import org.apache.solr.core.SolrCore;
+import org.apache.solr.core.SolrResourceLoader;
+import org.apache.solr.handler.dataimport.Context;
+import org.apache.solr.handler.dataimport.DataImportHandlerException;
+import org.apache.solr.handler.dataimport.EntityProcessorBase;
+import org.marc4j.MarcXmlReader;
+import org.metafacture.metamorph.InlineMorph;
+import org.metafacture.metamorph.Metamorph;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.xml.sax.InputSource;
+
+import java.io.*;
 import java.lang.invoke.MethodHandles;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -12,21 +24,11 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-
-import org.apache.lucene.analysis.util.ResourceLoader;
-import org.apache.solr.core.SolrCore;
-import org.apache.solr.core.SolrResourceLoader;
-import org.apache.solr.handler.dataimport.Context;
-import org.apache.solr.handler.dataimport.DataImportHandlerException;
-import org.apache.solr.handler.dataimport.EntityProcessorBase;
-import org.culturegraph.plugin.io.ChunkReader;
-import org.culturegraph.plugin.io.DecompressedInputStream;
-import org.metafacture.metamorph.InlineMorph;
-import org.metafacture.metamorph.Metamorph;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.stream.StreamSupport;
 
 import static org.apache.solr.handler.dataimport.DataImportHandlerException.wrapAndThrow;
 
@@ -109,7 +111,7 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
         }
 
         if (processor == null) {
-            if (inputFormat.equals("marc21") || inputFormat.equals("marc")) {
+            if (inputFormat.equals("marc21") || inputFormat.equals("marc") || inputFormat.equals("marcxml")) {
                 processor = new MetamorphProcessor("marc21", metamorphList);
             } else {
                 processor = new MetamorphProcessor(inputFormat, metamorphList);
@@ -132,6 +134,11 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
         switch (format.toLowerCase()) {
             case "marc21":
                 return new ChunkReader(reader, "\u001D").records();
+            case "marcxml":
+                MarcXmlReader marcXmlReader = new MarcXmlReader(new InputSource(reader));
+                Iterator<String> rawMarcIterator = new MarcConverter(marcXmlReader);
+                return StreamSupport.stream(Spliterators.spliteratorUnknownSize(rawMarcIterator, Spliterator.ORDERED),
+                        false);
             default:
                 return new BufferedReader(reader).lines();
         }
