@@ -2,6 +2,7 @@ package org.culturegraph.plugin.io;
 
 import java.util.Iterator;
 
+@Deprecated
 public class Marc21Preprocessor implements Iterator<String> {
 
     private Iterator<String> iterator;

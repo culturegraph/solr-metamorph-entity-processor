@@ -9,6 +9,7 @@ import java.util.Scanner;
 /**
  * A reader that chunks a input stream on a defined record terminator symbol.
  */
+@Deprecated
 public class ChunkRecordReader implements Iterator<String> {
     private Scanner scanner;
     private String recordTerminator;
