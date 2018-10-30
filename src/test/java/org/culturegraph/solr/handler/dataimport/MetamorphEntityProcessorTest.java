@@ -23,7 +23,7 @@ public class MetamorphEntityProcessorTest {
          *  <entity name="morphed_record"
          *          processor="MetamorphEntityProcessor"
          *          url="test.mrc"
-         *          inputFormat="pica"
+         *          inputFormat="marc"
          *          metamorph="morph.xml"
          *          includeFullRecord="true"
          *          onError="skip"
@@ -66,7 +66,7 @@ public class MetamorphEntityProcessorTest {
          *  <entity name="morphed_record"
          *          processor="MetamorphEntityProcessor"
          *          url="test.mrc"
-         *          inputFormat="pica"
+         *          inputFormat="marc"
          *          metamorph="morph.xml"
          *          includeFullRecord="true"
          *          />
@@ -106,7 +106,7 @@ public class MetamorphEntityProcessorTest {
          *  <entity name="morphed_record"
          *          processor="MetamorphEntityProcessor"
          *          url="test.mrc"
-         *          inputFormat="pica"
+         *          inputFormat="marc"
          *          metamorph="morph.xml"
          *          includeFullRecord="true"
          *          />
@@ -146,7 +146,7 @@ public class MetamorphEntityProcessorTest {
          *  <entity name="morphed_record"
          *          processor="MetamorphEntityProcessor"
          *          url="test.mrc"
-         *          inputFormat="pica"
+         *          inputFormat="marc"
          *          metamorph="morph.xml"
          *          includeFullRecord="true"
          *          />
