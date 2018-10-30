@@ -1,20 +1,10 @@
 package org.culturegraph.solr.handler.dataimport;
 
-import org.culturegraph.plugin.io.ChunkRecordReader;
-import org.culturegraph.plugin.io.DecompressedInputStream;
-import org.apache.lucene.analysis.util.ResourceLoader;
-import org.apache.solr.core.SolrCore;
-import org.apache.solr.core.SolrResourceLoader;
-import org.apache.solr.handler.dataimport.Context;
-import org.apache.solr.handler.dataimport.DataImportHandlerException;
-import org.apache.solr.handler.dataimport.EntityProcessorBase;
-import org.culturegraph.plugin.io.Marc21Preprocessor;
-import org.metafacture.metamorph.InlineMorph;
-import org.metafacture.metamorph.Metamorph;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.lang.invoke.MethodHandles;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -22,6 +12,21 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+
+import org.apache.lucene.analysis.util.ResourceLoader;
+import org.apache.solr.core.SolrCore;
+import org.apache.solr.core.SolrResourceLoader;
+import org.apache.solr.handler.dataimport.Context;
+import org.apache.solr.handler.dataimport.DataImportHandlerException;
+import org.apache.solr.handler.dataimport.EntityProcessorBase;
+import org.culturegraph.plugin.io.ChunkReader;
+import org.culturegraph.plugin.io.DecompressedInputStream;
+import org.metafacture.metamorph.InlineMorph;
+import org.metafacture.metamorph.Metamorph;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.solr.handler.dataimport.DataImportHandlerException.wrapAndThrow;
 
@@ -36,7 +41,12 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
     private MetamorphProcessor processor;
 
     private Reader reader;
-    private Iterator<String> recordReader;
+    private Stream<String> recordStream;
+    private Iterator<String> recordIter;
+
+    // Preprocessing
+    private Pattern startsWithWhitespace = Pattern.compile("^\\s+");
+    private Pattern containsNewlineOrCarriageReturn = Pattern.compile("[\\n\\r]");
 
     /**
      * Parses each of the entity attributes.
@@ -45,7 +55,7 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
     public void init(Context context) {
         super.init(context);
 
-        // init a file format for the records we want to loadMetamorph
+        // Init a file format for the records we want to load
         String inputFormat = context.getResolvedEntityAttribute(INPUT_FORMAT);
         if (inputFormat != null) {
             this.inputFormat = inputFormat;
@@ -90,7 +100,7 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
                     "'" + DATASOURCE_URL + "' is a required attribute");
         }
 
-        // append processed record to the row
+        // Append processed record to the row
         String includeFullRecord = context.getResolvedEntityAttribute(INCLUDE_FULL_RECORD);
         if (includeFullRecord != null) {
             addRecord = Boolean.parseBoolean(includeFullRecord);
@@ -99,7 +109,11 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
         }
 
         if (processor == null) {
-            processor = new MetamorphProcessor(inputFormat, metamorphList);
+            if (inputFormat.equals("marc21") || inputFormat.equals("marc")) {
+                processor = new MetamorphProcessor("marc21", metamorphList);
+            } else {
+                processor = new MetamorphProcessor(inputFormat, metamorphList);
+            }
             processor.buildPipeline();
         }
     }
@@ -114,17 +128,17 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
         return inline.create();
     }
 
-    private Iterator<String> createRecordReader(String format, Reader reader) {
+    private Stream<String> createRecordStream(String format, Reader reader) {
         switch (format.toLowerCase()) {
             case "marc21":
-                return new Marc21Preprocessor(new ChunkRecordReader(reader, "\u001D"));
+                return new ChunkReader(reader, "\u001D").records();
             default:
-                return new BufferedReader(reader).lines().iterator();
+                return new BufferedReader(reader).lines();
         }
     }
 
     /**
-     * Reads records from the url.
+     * Reads records from a url.
      *
      * @return A row containing each literal from the metamorph transformation
      * and the complete record (if chosen).
@@ -157,21 +171,29 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
                         "Data source " + "'" + url + "'" + " is missing.");
             }
 
-            reader = new BufferedReader(dataSourceReader);
-            recordReader = createRecordReader(inputFormat, reader);
-        }
 
-        // end of input
-        if (!recordReader.hasNext()) {
+
+            reader = new BufferedReader(dataSourceReader);
+            recordStream = createRecordStream(inputFormat, reader);
+            recordIter = recordStream
+                    .map(chunk -> startsWithWhitespace.matcher(chunk).replaceAll(""))
+                    .map(chunk -> containsNewlineOrCarriageReturn.matcher(chunk).replaceAll(" "))
+                    .iterator();
+        }  // End of reader init
+
+
+
+        // End of input
+        if (!recordIter.hasNext()) {
             closeResources();
             return null;
         }
 
         Map<String, Object> row = null;
-        while (recordReader.hasNext()) {
-            String record = recordReader.next();
+        while (recordIter.hasNext()) {
+            String record = recordIter.next();
 
-            // end of input
+            // End of input
             if (record == null) {
                 break;
             }
@@ -201,7 +223,7 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
             break;
         }
 
-        // end of input
+        // End of input
         if (row == null) {
             closeResources();
             return null;
@@ -220,7 +242,8 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
             }
         }
         reader = null;
-        recordReader = null;
+        recordStream = null;
+        recordIter = null;
     }
 
     @Override
