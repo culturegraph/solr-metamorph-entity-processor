@@ -19,7 +19,7 @@
         <maven.build.timestamp.format>yyyy-MM-dd HH:mm:ss</maven.build.timestamp.format>
 
         <slf4j.version>1.7.25</slf4j.version>
-        <solr.version>7.4.0</solr.version>
+        <solr.version>7.5.0</solr.version>
         <metafacture.version>5.0.0</metafacture.version>
     </properties>
 
