@@ -1,16 +1,31 @@
 package org.culturegraph.solr.handler.dataimport;
 
-import org.apache.solr.common.util.Utils;
-import org.apache.solr.core.SolrCore;
-import org.apache.solr.handler.dataimport.*;
-import org.junit.Test;
-
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 import java.util.zip.GZIPOutputStream;
+
+import org.apache.solr.common.util.Utils;
+import org.apache.solr.core.SolrCore;
+import org.apache.solr.handler.dataimport.Context;
+import org.apache.solr.handler.dataimport.ContextImpl;
+import org.apache.solr.handler.dataimport.DataSource;
+import org.apache.solr.handler.dataimport.EntityProcessor;
+import org.apache.solr.handler.dataimport.EntityProcessorWrapper;
+import org.apache.solr.handler.dataimport.VariableResolver;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -33,7 +48,7 @@ public class MetamorphEntityProcessorTest {
         String marc21Record = loadMarc21Record();
 
         Map attrs = createMap(
-                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/record.mrc",
+                MetamorphEntityProcessor.URL, "src/test-files/record.mrc",
                 MetamorphEntityProcessor.INPUT_FORMAT, "marc21",
                 MetamorphEntityProcessor.MORPH_DEF, "src/test-files/morph.xml",
                 MetamorphEntityProcessor.INCLUDE_FULL_RECORD, "true",
@@ -75,7 +90,7 @@ public class MetamorphEntityProcessorTest {
         String marc21Record = loadMarc21Record();
 
         Map attrs = createMap(
-                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/record.mrc",
+                MetamorphEntityProcessor.URL, "src/test-files/record.mrc",
                 MetamorphEntityProcessor.INPUT_FORMAT, "marc21",
                 MetamorphEntityProcessor.MORPH_DEF, "src/test-files/morph.xml",
                 MetamorphEntityProcessor.INCLUDE_FULL_RECORD, "true"
@@ -115,7 +130,7 @@ public class MetamorphEntityProcessorTest {
         String marc21Record = loadMarc21Record();
 
         Map attrs = createMap(
-                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/record.mrc",
+                MetamorphEntityProcessor.URL, "src/test-files/record.mrc",
                 MetamorphEntityProcessor.INPUT_FORMAT, "marc21",
                 MetamorphEntityProcessor.MORPH_DEF, "src/test-files/morph.xml",
                 MetamorphEntityProcessor.INCLUDE_FULL_RECORD, "true"
@@ -155,7 +170,7 @@ public class MetamorphEntityProcessorTest {
         String marc21Record = loadMarc21Record();
 
         Map attrs = createMap(
-                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/record.mrc.gz",
+                MetamorphEntityProcessor.URL, "src/test-files/record.mrc.gz",
                 MetamorphEntityProcessor.INPUT_FORMAT, "marc21",
                 MetamorphEntityProcessor.MORPH_DEF, "src/test-files/morph.xml",
                 MetamorphEntityProcessor.INCLUDE_FULL_RECORD, "true"
@@ -195,7 +210,7 @@ public class MetamorphEntityProcessorTest {
         String marcxml = loadMarcXmlRecord();
 
         Map attrs = createMap(
-                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/record.xml",
+                MetamorphEntityProcessor.URL, "src/test-files/record.xml",
                 MetamorphEntityProcessor.INPUT_FORMAT, "marcxml",
                 MetamorphEntityProcessor.MORPH_DEF, "src/test-files/morph.xml",
                 MetamorphEntityProcessor.INCLUDE_FULL_RECORD, "true"
@@ -235,7 +250,7 @@ public class MetamorphEntityProcessorTest {
         String marcxml = loadMarcXmlRecord();
 
         Map attrs = createMap(
-                MetamorphEntityProcessor.DATASOURCE_URL, "src/test-files/record.xml.gz",
+                MetamorphEntityProcessor.URL, "src/test-files/record.xml.gz",
                 MetamorphEntityProcessor.INPUT_FORMAT, "marcxml",
                 MetamorphEntityProcessor.MORPH_DEF, "src/test-files/morph.xml",
                 MetamorphEntityProcessor.INCLUDE_FULL_RECORD, "true"

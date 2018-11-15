@@ -1,22 +1,10 @@
 package org.culturegraph.solr.handler.dataimport;
 
-import org.culturegraph.plugin.io.MarcConverter;
-import org.culturegraph.plugin.io.ChunkReader;
-import org.culturegraph.plugin.io.DecompressedInputStream;
-import org.apache.lucene.analysis.util.ResourceLoader;
-import org.apache.solr.core.SolrCore;
-import org.apache.solr.core.SolrResourceLoader;
-import org.apache.solr.handler.dataimport.Context;
-import org.apache.solr.handler.dataimport.DataImportHandlerException;
-import org.apache.solr.handler.dataimport.EntityProcessorBase;
-import org.marc4j.MarcXmlReader;
-import org.metafacture.metamorph.InlineMorph;
-import org.metafacture.metamorph.Metamorph;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.xml.sax.InputSource;
-
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.lang.invoke.MethodHandles;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -30,94 +18,177 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import org.apache.lucene.analysis.util.ResourceLoader;
+import org.apache.solr.common.util.IOUtils;
+import org.apache.solr.core.SolrCore;
+import org.apache.solr.core.SolrResourceLoader;
+import org.apache.solr.handler.dataimport.Context;
+import org.apache.solr.handler.dataimport.DataImportHandlerException;
+import org.apache.solr.handler.dataimport.DataSource;
+import org.apache.solr.handler.dataimport.EntityProcessorBase;
+import org.culturegraph.plugin.io.ChunkReader;
+import org.culturegraph.plugin.io.DecompressedInputStream;
+import org.culturegraph.plugin.io.MarcConverter;
+import org.marc4j.MarcXmlReader;
+import org.metafacture.metamorph.InlineMorph;
+import org.metafacture.metamorph.Metamorph;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.xml.sax.InputSource;
+
+import static org.apache.solr.handler.dataimport.DataImportHandlerException.SEVERE;
 import static org.apache.solr.handler.dataimport.DataImportHandlerException.wrapAndThrow;
 
 public class MetamorphEntityProcessor extends EntityProcessorBase {
 
     private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
-    private String url;
-    private String inputFormat;
-    private boolean addRecord;
+    /** Flag that marks a init that happens only once */
+    private boolean once = false;
+    /** Flag that marks the end of a data source */
+    private boolean ended = false;
 
-    private MetamorphProcessor processor;
-
+    /** Data source reader */
     private Reader reader;
-    private Stream<String> recordStream;
-    private Iterator<String> recordIter;
-
-    // Preprocessing
+    /** Name of the file format red by the reader */
+    private String format;
+    /** Iterator that iterates the reader */
+    private Iterator<String> recordIterator;
+    /** Pattern that is used to replace leading whitespace */
     private Pattern startsWithWhitespace = Pattern.compile("^\\s+");
+    /** Pattern that is used to replace newline or carriage return */
     private Pattern containsNewlineOrCarriageReturn = Pattern.compile("[\\n\\r]");
 
-    /**
-     * Parses each of the entity attributes.
-     */
+    private MetamorphProcessor recordProcessor;
+    private boolean includeFullRecord;
+
     @Override
     public void init(Context context) {
         super.init(context);
 
-        // Init a file format for the records we want to load
-        String inputFormat = context.getResolvedEntityAttribute(INPUT_FORMAT);
-        if (inputFormat != null) {
-            this.inputFormat = inputFormat;
-        } else {
-            throw new DataImportHandlerException(DataImportHandlerException.SEVERE,
-                    "'" + INPUT_FORMAT + "' is a required attribute");
-        }
-
-        // Init the metamorph definitions we want to use
-        List<Metamorph> metamorphList = new ArrayList<>();
-        String morphDefs = context.getResolvedEntityAttribute(MORPH_DEF);
-        if (morphDefs != null) {
-            morphDefs = context.replaceTokens(morphDefs);
-            String[] morphDefArr = morphDefs.split(",");
-            for (int i = 0; i < morphDefArr.length; i++) {
-                String morphDef = morphDefArr[i];
-                Metamorph metamorph;
-
-                final SolrCore core = context.getSolrCore();
-                if (core != null) {
-                    ResourceLoader loader = core.getResourceLoader();
-                    try {
-                        InputStream morphDefInputStream = loader.openResource(morphDef);
-                        metamorph = loadMetamorph(morphDefInputStream);
-                    } catch (IOException e) {
-                        String target = ((SolrResourceLoader) loader).resourceLocation(morphDef);
-                        throw new DataImportHandlerException(DataImportHandlerException.SEVERE, "'" + target + "' not readable", e);
-                    }
-                } else {
-                    metamorph = new Metamorph(morphDef);
-                }
-                metamorphList.add(metamorph);
-            }
-        } else {
-            throw new DataImportHandlerException(DataImportHandlerException.SEVERE,
-                    "'" + MORPH_DEF + "' is a required attribute");
-        }
-
-        url = context.getResolvedEntityAttribute(DATASOURCE_URL);
-        if (url == null) {
-            throw new DataImportHandlerException(DataImportHandlerException.SEVERE,
-                    "'" + DATASOURCE_URL + "' is a required attribute");
-        }
-
-        // Append processed record to the row
-        String includeFullRecord = context.getResolvedEntityAttribute(INCLUDE_FULL_RECORD);
-        if (includeFullRecord != null) {
-            addRecord = Boolean.parseBoolean(includeFullRecord);
-        } else {
-            addRecord = false;
-        }
-
-        if (processor == null) {
-            if (inputFormat.equals("marc21") || inputFormat.equals("marc") || inputFormat.equals("marcxml")) {
-                processor = new MetamorphProcessor("marc21", metamorphList);
+        if (!once) {
+            String format = context.getResolvedEntityAttribute(INPUT_FORMAT);
+            if (format != null) {
+                this.format = format;
             } else {
-                processor = new MetamorphProcessor(inputFormat, metamorphList);
+                throw new DataImportHandlerException(DataImportHandlerException.SEVERE,
+                        "'" + INPUT_FORMAT + "' is a required attribute");
             }
-            processor.buildPipeline();
+
+            String includeFullRecord = context.getResolvedEntityAttribute(INCLUDE_FULL_RECORD);
+            if (includeFullRecord != null) {
+                this.includeFullRecord = Boolean.parseBoolean(includeFullRecord);
+            } else {
+                this.includeFullRecord = false;
+            }
+
+
+            List<Metamorph> metamorphList = new ArrayList<>();
+            String morphDefs = context.getResolvedEntityAttribute(MORPH_DEF);
+            if (morphDefs != null) {
+                morphDefs = context.replaceTokens(morphDefs);
+                String[] morphDefArr = morphDefs.split(",");
+                for (int i = 0; i < morphDefArr.length; i++) {
+                    String morphDef = morphDefArr[i];
+                    Metamorph metamorph;
+
+                    final SolrCore core = context.getSolrCore();
+                    if (core != null) {
+                        ResourceLoader loader = core.getResourceLoader();
+                        try {
+                            InputStream morphDefInputStream = loader.openResource(morphDef);
+                            metamorph = loadMetamorph(morphDefInputStream);
+                        } catch (IOException e) {
+                            String target = ((SolrResourceLoader) loader).resourceLocation(morphDef);
+                            throw new DataImportHandlerException(DataImportHandlerException.SEVERE, "'" + target + "' not readable", e);
+                        }
+                    } else {
+                        metamorph = new Metamorph(morphDef);
+                    }
+                    metamorphList.add(metamorph);
+                }
+            } else {
+                throw new DataImportHandlerException(DataImportHandlerException.SEVERE,
+                        "'" + MORPH_DEF + "' is a required attribute");
+            }
+
+            if (recordProcessor == null) {
+                /* MARCXML gets transformed to MARC21, so we need the processor for Marc21.
+                 * See {@link org.culturegraph.solr.handler.dataimport.MetamorphEntityProcessor#createRecordStream }. */
+                if (format.equalsIgnoreCase("marc21") ||format.equalsIgnoreCase("marc") || format.equalsIgnoreCase("marcxml")) {
+                    recordProcessor = new MetamorphProcessor("marc21", metamorphList);
+                } else {
+                    recordProcessor = new MetamorphProcessor(format, metamorphList);
+                }
+                recordProcessor.buildPipeline();
+            }
+
+            once = true;
         }
+
+        ended = false;
+    }
+
+    @Override
+    public Map<String, Object> nextRow() {
+        if (ended) return null;
+
+        if (recordIterator == null) {
+            String url = context.replaceTokens(context.getEntityAttribute(URL));
+            DataSource ds = context.getDataSource();
+
+            try {
+                Object data = ds.getData(url);
+                if (data instanceof  Reader) {
+                    reader = (Reader) data;
+                } else if (data instanceof InputStream) {
+                    InputStream inputStream = (InputStream) data;
+                    Charset utf8 = StandardCharsets.UTF_8;
+                    reader = new InputStreamReader(DecompressedInputStream.of(inputStream), utf8);
+                } else {
+                    throw new DataImportHandlerException(SEVERE, "Could not create reader!");
+                }
+            } catch (Exception e) {
+                wrapAndThrow(SEVERE, e, "Exception reading url : " + url);
+            }
+
+            recordIterator = createRecordStream(reader, format)
+                    .map(chunk -> startsWithWhitespace.matcher(chunk).replaceAll(""))
+                    .map(chunk -> containsNewlineOrCarriageReturn.matcher(chunk).replaceAll(" "))
+                    .iterator();
+        }
+
+        Map<String, Object> row = null;
+        while (recordIterator.hasNext()) {
+            String record = recordIterator.next();
+            try {
+                row = createRow(record);
+                break;
+            } catch (Exception e) {
+                if (!onError.equals(SKIP)) {
+                    if (log.isDebugEnabled()) log.debug("Could not process '{}'. Error: {}.", record, e.getMessage());
+                    wrapAndThrow(SEVERE, e, "Unable to process record.");
+                }
+            }
+        }
+
+        if (row == null) ended = true;
+
+        if (!recordIterator.hasNext()) {
+            ended = true;
+            IOUtils.closeQuietly(reader);
+            recordIterator = null;
+        }
+
+        return row;
+    }
+
+    private Map<String,Object> createRow(String record) {
+        Map<String,Object> row = recordProcessor.process(record);
+        if (includeFullRecord) {
+            row.put("fullRecord", record);
+        }
+        return row;
     }
 
     private Metamorph loadMetamorph(InputStream inputStream) {
@@ -130,7 +201,7 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
         return inline.create();
     }
 
-    private Stream<String> createRecordStream(String format, Reader reader) {
+    private Stream<String> createRecordStream(Reader reader, String format) {
         switch (format.toLowerCase()) {
             case "marc21":
                 return new ChunkReader(reader, "\u001D").records();
@@ -142,121 +213,6 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
             default:
                 return new BufferedReader(reader).lines();
         }
-    }
-
-    /**
-     * Reads records from a url.
-     *
-     * @return A row containing each literal from the metamorph transformation
-     * and the complete record (if chosen).
-     */
-    @Override
-    public Map<String, Object> nextRow() {
-
-        if (reader == null) {
-            Object data = context.getDataSource().getData(url);
-            Reader dataSourceReader = null;
-
-            if (data instanceof Reader) {
-                dataSourceReader = (Reader) data;
-            }
-
-            if (data instanceof InputStream) {
-                InputStream dataInputStream = (InputStream) data;
-
-                try {
-                    final Charset utf8 = StandardCharsets.UTF_8;
-                    dataSourceReader = new InputStreamReader(DecompressedInputStream.of(dataInputStream), utf8);
-                } catch (IOException e) {
-                    throw new DataImportHandlerException(DataImportHandlerException.SEVERE,
-                            "Problem with data source " + "'" + url + "'" + ".");
-                }
-            }
-
-            if (dataSourceReader == null) {
-                throw new DataImportHandlerException(DataImportHandlerException.SEVERE,
-                        "Data source " + "'" + url + "'" + " is missing.");
-            }
-
-
-
-            reader = new BufferedReader(dataSourceReader);
-            recordStream = createRecordStream(inputFormat, reader);
-            recordIter = recordStream
-                    .map(chunk -> startsWithWhitespace.matcher(chunk).replaceAll(""))
-                    .map(chunk -> containsNewlineOrCarriageReturn.matcher(chunk).replaceAll(" "))
-                    .iterator();
-        }  // End of reader init
-
-
-
-        // End of input
-        if (!recordIter.hasNext()) {
-            closeResources();
-            return null;
-        }
-
-        Map<String, Object> row = null;
-        while (recordIter.hasNext()) {
-            String record = recordIter.next();
-
-            // End of input
-            if (record == null) {
-                break;
-            }
-
-            if (record.isEmpty()) {
-                continue;
-            }
-
-            try {
-                row = processor.process(record);
-            } catch (Exception e) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Skipping record '{}', got '{}'.", record, e);
-                }
-
-                if (onError.equals(SKIP)) {
-                    continue;
-                } else {
-                    wrapAndThrow(DataImportHandlerException.SEVERE, e, "Unable to process record.");
-                }
-            }
-
-            if (addRecord) {
-                row.put("fullRecord", record);
-            }
-
-            break;
-        }
-
-        // End of input
-        if (row == null) {
-            closeResources();
-            return null;
-        }
-
-        return row;
-    }
-
-    public void closeResources() {
-        if (reader != null) {
-            try {
-                reader.close();
-            } catch (IOException exp) {
-                throw new DataImportHandlerException(DataImportHandlerException.SEVERE,
-                        "Problem closing input.", exp);
-            }
-        }
-        reader = null;
-        recordStream = null;
-        recordIter = null;
-    }
-
-    @Override
-    public void destroy() {
-        closeResources();
-        super.destroy();
     }
 
     /**
@@ -281,5 +237,5 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
      * Holds the name of entity attribute that will be parsed to obtain
      * the filename.
      */
-    public static final String DATASOURCE_URL = "url";
+    public static final String URL = "url";
 }
