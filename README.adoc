@@ -228,7 +228,7 @@ A row processed by Solr is a map that consists of key-value or key-list pairs.
 startRecord("001")
 literal("date", "20181001")
 startEntity("person")
-literal("lastname", "Unkown")
+literal("lastname", "Unknown")
 endEntity()
 literal("cat", "human")
 literal("cat", "person")
@@ -240,7 +240,7 @@ endRecord()
 {
   "cat": ["human", "person"]
   "date": "20181001"
-  "personLastname": "Unkown"
+  "personLastname": "Unknown"
 }
 ----
 
