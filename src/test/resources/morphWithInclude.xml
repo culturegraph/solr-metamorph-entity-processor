@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE metamorph [<!ENTITY include SYSTEM "include.xml">]>
 <metamorph xmlns="http://www.culturegraph.org/metamorph" version="1">
     <rules>
-        <data name="idn" source="001"/>
+        &include;
 
         <data name="type" source="001">
             <constant value="record"/>
