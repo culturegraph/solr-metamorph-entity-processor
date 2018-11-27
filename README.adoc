@@ -15,7 +15,7 @@ extraction.
 mvn package
 ----
 
-Produces _solr-metamorph-entity-processor-VERSION-fat.jar_ in _target_ .
+Produces _solr-metamorph-entity-processor-VERSION-jar-with-dependencies.jar_ in _target_ .
 
 === Integrate Plugin into Solr
 
@@ -125,7 +125,7 @@ Supported Formats:::
 ** Pre-processing records by replacing _newline_ and _carriage return_ with a space
 * marcxml
 ** Pre-processing records by converting marcxml into marc21 and using the marc21 pre-processing (see above).
-** Implicit field _fullRecord_ contains the MARC21 representation of the record.
+** if _includeFullRecord=true_, the implicit field _fullRecord_ contains the MARC21 representation of the record.
 
 morphDef::
 _Required._ The metamorph definition files that are used for field extraction.
@@ -133,15 +133,21 @@ Each extracted field is added as a implicit field.
 If the input is a list of files (separated by a comma), the data get passed
 from one metamorph file to another.
 Those files are located inside the config set's _conf_ directory.
+::
+Make sure that your metamorph definition xml has the following properties:
+* The encoding of the file should be UTF-8
+** Validate the file encoding with a text editor
+* Check for control characters, if you use XML 1.0
+** ASCII control characters are not legally encodeable in XML 1.0
 
 includeFullRecord::
 An _optional_ attribute that adds the received record to the implicit field `fullRecord`.
 The attribute is a boolean value (true or false), that is false by default.
 
 onError::
-By default, the MetamorphEntityProcessor will stop processing documents if it finds one that generates an error.
-If you define _onError_ to "skip", the MetamorphEntityProcessor will instead skip documents that fail processing and
-log a debug message that the document was skipped.
+By default the MetamorphEntityProcessor will stop processing documents, if it finds one that generates an error.
+If you set _onError_ to "skip", the MetamorphEntityProcessor will instead skip documents that fail processing.
+A debug message will be created that contains the record and the cause of the failure.
 
 For example:
 
