@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metamorph xmlns="http://www.culturegraph.org/metamorph" version="1">
+    <rules>
+        <data name="idn" source="001"/>
+
+        <data name="type" source="001">
+            <constant value="record"/>
+        </data>
+    </rules>
+</metamorph>
