@@ -1,10 +1,6 @@
 package org.culturegraph.solr.handler.dataimport;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
+import java.io.*;
 import java.lang.invoke.MethodHandles;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -29,12 +25,15 @@ import org.apache.solr.handler.dataimport.EntityProcessorBase;
 import org.culturegraph.plugin.io.ChunkReader;
 import org.culturegraph.plugin.io.DecompressedInputStream;
 import org.culturegraph.plugin.io.MarcConverter;
+import org.culturegraph.plugin.metamorph.xml.LocalSystemEntityResolver;
+import org.culturegraph.plugin.metamorph.xml.RemoteSystemEntityResolver;
 import org.marc4j.MarcXmlReader;
-import org.metafacture.metamorph.InlineMorph;
 import org.metafacture.metamorph.Metamorph;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xml.sax.InputSource;
+
+import javax.xml.stream.*;
 
 import static org.apache.solr.handler.dataimport.DataImportHandlerException.SEVERE;
 import static org.apache.solr.handler.dataimport.DataImportHandlerException.wrapAndThrow;
@@ -96,14 +95,17 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
                     if (core != null) {
                         ResourceLoader loader = core.getResourceLoader();
                         try {
-                            InputStream morphDefInputStream = loader.openResource(morphDef);
-                            metamorph = loadMetamorph(morphDefInputStream);
+                            metamorph = loadMetamorph(loader, morphDef);
                         } catch (IOException e) {
                             String target = ((SolrResourceLoader) loader).resourceLocation(morphDef);
                             throw new DataImportHandlerException(DataImportHandlerException.SEVERE, "'" + target + "' not readable", e);
                         }
                     } else {
-                        metamorph = new Metamorph(morphDef);
+                        try {
+                            metamorph = loadMetamorph(getClass().getClassLoader(), morphDef);
+                        } catch (IOException e) {
+                            throw new IllegalArgumentException("MorphDef '" + morphDef + "' not found.", e);
+                        }
                     }
                     metamorphList.add(metamorph);
                 }
@@ -191,14 +193,42 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
         return row;
     }
 
-    private Metamorph loadMetamorph(InputStream inputStream) {
-        BufferedReader br = new BufferedReader(new InputStreamReader(inputStream));
-        Iterator<String> iter = br.lines().filter(s -> !s.startsWith("<?")).iterator();
-        InlineMorph inline = InlineMorph.in(this);
-        while (iter.hasNext()) {
-            inline = inline.with(iter.next());
+    private Metamorph loadMetamorph(ResourceLoader loader, String morphDefSystemID) throws IOException {
+        XMLInputFactory inputFactory = XMLInputFactory.newInstance();
+        inputFactory.setXMLResolver(new RemoteSystemEntityResolver(loader));
+
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        try {
+            XMLEventReader reader = inputFactory.createXMLEventReader(loader.openResource(morphDefSystemID));
+            XMLEventWriter writer = XMLOutputFactory.newInstance().createXMLEventWriter(buf);
+            writer.add(reader);
+            writer.flush();
+            writer.close();
+        } catch (XMLStreamException e) {
+            throw new IOException(e);
         }
-        return inline.create();
+
+        String morphDefXmlWithResolvedSystemEntities = new String(buf.toByteArray(), StandardCharsets.UTF_8);
+        return new Metamorph(new StringReader(morphDefXmlWithResolvedSystemEntities));
+    }
+
+    private Metamorph loadMetamorph(ClassLoader loader, String morphDefSystemID) throws IOException {
+        XMLInputFactory inputFactory = XMLInputFactory.newInstance();
+        inputFactory.setXMLResolver(new LocalSystemEntityResolver(loader));
+
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        try {
+            XMLEventReader reader = inputFactory.createXMLEventReader(loader.getResourceAsStream(morphDefSystemID));
+            XMLEventWriter writer = XMLOutputFactory.newInstance().createXMLEventWriter(buf);
+            writer.add(reader);
+            writer.flush();
+            writer.close();
+        } catch (XMLStreamException e) {
+            throw new IOException(e);
+        }
+
+        String morphDefXmlWithResolvedSystemEntities = new String(buf.toByteArray(), StandardCharsets.UTF_8);
+        return new Metamorph(new StringReader(morphDefXmlWithResolvedSystemEntities));
     }
 
     private Stream<String> createRecordStream(Reader reader, String format) {
@@ -208,8 +238,10 @@ public class MetamorphEntityProcessor extends EntityProcessorBase {
             case "marcxml":
                 MarcXmlReader marcXmlReader = new MarcXmlReader(new InputSource(reader));
                 Iterator<String> rawMarcIterator = new MarcConverter(marcXmlReader);
-                return StreamSupport.stream(Spliterators.spliteratorUnknownSize(rawMarcIterator, Spliterator.ORDERED),
-                        false);
+                boolean isNotParallel = false;
+                return StreamSupport.stream(
+                        Spliterators.spliteratorUnknownSize(rawMarcIterator, Spliterator.ORDERED),
+                        isNotParallel);
             default:
                 return new BufferedReader(reader).lines();
         }
