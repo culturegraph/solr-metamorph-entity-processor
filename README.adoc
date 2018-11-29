@@ -33,51 +33,66 @@ A list of Solr directories:
 
 | SOLR_ROOT
 | Path to the unpacked solr distribution
-| /opt/solr-7.4.0
+| /srv/solr-7.4.0
 
 | SOLR_SERVER_DIR
 | SOLR_ROOT/server
-| /opt/solr-7.4.0/server
+| /srv/solr-7.4.0/server
 
 | SOLR_HOME
 | SOLR_ROOT/server/solr
-| /opt/solr-7.4.0/server/solr
+| /srv/solr-7.4.0/server/solr
 
 |====
 
-==== Include Metamorph Dependencies
+Create the directory `SOLR_ROOT/lib`:
 
-* Copy directory `setup/contrib/metafacture` into `SOLR_SERVER_DIR/lib`.
+----
+mkdir -p SOLR_ROOT/lib
+----
 
-NOTE::
-This is a workaround.
-The proper way to include a third-party library to Solr is the `SOLR_ROOT/contrib` directory.
-A integration of Metamorph with the lib statement failed due to
-missing schema and property files and not loadable classes.
-Adding those files directly to the server lib resolved the issue.
+==== Include Metafacture Dependencies
 
-* Add files in `setup/resources` to `SOLR_SERVER_DIR/resources`
-* Add files in `setup/schemata` to `SOLR_SERVER_DIR/schemata`
+----
+mkdir -p SOLR_ROOT/lib/metafacture
+----
 
+Copy all Metafacture Module JARs into `SOLR_ROOT/lib/metafacture` and into `SOLR_ROOT/server/solr-webapp/webapp/WEB-INF/lib`.
 
+----
+cd SOLR_ROOT/lib/metafacture
 
-==== Plugin Installation
+repo="http://central.maven.org/maven2/org/metafacture"
+modules="metafacture-biblio metafacture-commons metafacture-flowcontrol metafacture-framework metafacture-io metafacture-mangling metamorph metamorph-api"
+for module in $modules; do
+  wget -q -P $(realpath ${SOLR})/lib/metafacture ${repo}/${module}/${METAFACTURE_VERSION}/${module}-${METAFACTURE_VERSION}.jar
+done
+----
 
-Copy file `target/solr-metamorph-entity-processor-VERSION.jar` into `SOLR_ROOT/dist`.
+==== Include Data Import Handler Add-Ons
 
-==== Data Import Handler Configuration
+----
+mkdir -p SOLR_ROOT/lib/dih
+----
+
+Copy the link:https://github.com/culturegraph/solr-metamorph-entity-processor/releases[latest release] JARs into `SOLR_ROOT/lib/dih`.
+
+==== Configure solrconfig.xml
+
+NOTE: Assumes a existing core (you may use a default core). Edit the *solrconfig.xml* of your core.
 
 Enable the Data Import Handler and the processor by adding the following
 _lib_ statements to the `solrconfig.xml` of your _config set_:
 
 ----
-<lib dir="${solr.install.dir:../../../..}/dist/" regex="solr-dataimporthandler-.*\.jar" />
-
-<lib dir="${solr.install.dir:../../../..}/dist/" regex="solr-metamorph-entity-processor-.*\.jar" />
-
-<!-- Does not work yet. Quickfix: Copy 'contrib/metafature' into 'server/lib'.
-<lib dir="${solr.install.dir:../../../..}/contrib/metafacture/lib" regex=".*\.jar" />
--->
+  <!-- Data Import Handler -->
+  <lib dir="\${solr.install.dir:../../../..}/dist/" regex="solr-dataimporthandler-.*\.jar" />
+  
+  <!-- Metafacture -->
+  <lib dir="\${solr.install.dir:../../../..}/lib/metafacture" regex="metafacture-.*\.jar" />
+  
+  <!-- Data Import Handler Add-Ons -->
+  <lib dir="\${solr.install.dir:../../../..}/lib/dih" regex="solr-metamorph-entity-processor-.*\.jar" />
 ----
 
 Add the _/dataimport_ request handle to the `solrconfig.xml`:
@@ -90,21 +105,12 @@ Add the _/dataimport_ request handle to the `solrconfig.xml`:
   </requestHandler>
 ----
 
-A example `solr-data-config.xml` is located in `setup/server/solr/configsets/demo/conf`.
+TIP: A example `solr-data-config.xml` is located in `example/solr-data-config.xml`.
 
-==== Example Config Set
-
-The folder `setup/server/solr/configsets` contains a modified version of the _default_ config set shipped with Solr 7.4.0 .
-
-* `solrconfig.xml` with the data import handler enabled (see above).
-* `morph.xml` metamorph definition file that reads the field `001` and renames it to `idn`.
-* `solr-data-config.xml`:
-** A file list reader for all `*.mrc.gz` files in the `/tmp` directory.
-** A marc21 entity processor that uses _morph.xml_ to process those files.
-
-A example file for the `/tmp` directory is located in `setup/tmp`.
 
 == Metamorph Entity Processor
+
+NOTE: Test data are located in `example/testdata.mrc`. The `solr-data-config.xml` expects them in `/tmp`.
 
 This MetamorphEntityProcessor reads all content from the data source on a record
 by record basis. This processor may handle compressed input streams,
@@ -255,65 +261,3 @@ The following rules are applied to convert a _IR_ to a _Row_:
 * Record id will be ignored
 * Literals with the same name form a list
 * Literal names in entities are prefixed with the entity name in CamelCase
-
-== Known Issues
-
-=== Schemata not found
-
-Issue:
-
-The schemata needed by the metamorph module are not found.
-
-Fix:
-
-* Add metafacture and metamorph dependencies to `SOLR_SERVER_DIR/lib`
-* Add metamorph resources to `SOLR_SERVER_DIR/resources`
-* Add metamorph schemata to `SOLR_SERVER_DIR/schemata`
-
-Error Message:
-
-----
-2018-10-16 15:19:15.199 ERROR (Thread-13) [   ] o.a.s.h.d.DataImporter Full Import failed:java.lang.RuntimeException: java.lang.RuntimeException: org.apache.solr.handler.dataimport.DataImportHandlerException: org.metafacture.metamorph.MetamorphException: Error while building the Metamorph transformation pipeline: 'schemata/metamorph.xsd' not found:
-	at org.apache.solr.handler.dataimport.DocBuilder.execute(DocBuilder.java:271)
-	at org.apache.solr.handler.dataimport.DataImporter.doFullImport(DataImporter.java:424)
-	at org.apache.solr.handler.dataimport.DataImporter.runCmd(DataImporter.java:483)
-	at org.apache.solr.handler.dataimport.DataImporter.lambda$runAsync$0(DataImporter.java:466)
-	at java.lang.Thread.run(Thread.java:745)
-Caused by: java.lang.RuntimeException: org.apache.solr.handler.dataimport.DataImportHandlerException: org.metafacture.metamorph.MetamorphException: Error while building the Metamorph transformation pipeline: 'schemata/metamorph.xsd' not found:
-	at org.apache.solr.handler.dataimport.DocBuilder.buildDocument(DocBuilder.java:417)
-	at org.apache.solr.handler.dataimport.DocBuilder.doFullDump(DocBuilder.java:330)
-	at org.apache.solr.handler.dataimport.DocBuilder.execute(DocBuilder.java:233)
-	... 4 more
-Caused by: org.apache.solr.handler.dataimport.DataImportHandlerException: org.metafacture.metamorph.MetamorphException: Error while building the Metamorph transformation pipeline: 'schemata/metamorph.xsd' not found:
-	at org.apache.solr.handler.dataimport.DocBuilder.buildDocument(DocBuilder.java:562)
-	at org.apache.solr.handler.dataimport.DocBuilder.buildDocument(DocBuilder.java:415)
-	... 6 more
-Caused by: org.metafacture.metamorph.MetamorphException: Error while building the Metamorph transformation pipeline: 'schemata/metamorph.xsd' not found:
-	at org.metafacture.metamorph.Metamorph.buildPipeline(Metamorph.java:183)
-	at org.metafacture.metamorph.Metamorph.<init>(Metamorph.java:171)
-	at org.metafacture.metamorph.Metamorph.<init>(Metamorph.java:162)
-	at org.metafacture.metamorph.Metamorph.<init>(Metamorph.java:158)
-	at org.metafacture.metamorph.InlineMorph.create(InlineMorph.java:143)
-	at org.culturegraph.solr.handler.dataimport.MetamorphEntityProcessor.loadMetamorph(MetamorphEntityProcessor.java:122)
-	at org.culturegraph.solr.handler.dataimport.MetamorphEntityProcessor.init(MetamorphEntityProcessor.java:80)
-	at org.apache.solr.handler.dataimport.EntityProcessorWrapper.init(EntityProcessorWrapper.java:77)
-	at org.apache.solr.handler.dataimport.DocBuilder.buildDocument(DocBuilder.java:434)
-	at org.apache.solr.handler.dataimport.DocBuilder.buildDocument(DocBuilder.java:517)
-	... 7 more
-Caused by: org.metafacture.framework.MetafactureException: 'schemata/metamorph.xsd' not found:
-	at org.metafacture.metamorph.xml.DomLoader.getSchemaUrl(DomLoader.java:115)
-	at org.metafacture.metamorph.xml.DomLoader.loadSchema(DomLoader.java:105)
-	at org.metafacture.metamorph.xml.DomLoader.createXmlFilterPipeline(DomLoader.java:93)
-	at org.metafacture.metamorph.xml.DomLoader.parse(DomLoader.java:69)
-	at org.metafacture.metamorph.AbstractMetamorphDomWalker.walk(AbstractMetamorphDomWalker.java:108)
-	at org.metafacture.metamorph.AbstractMetamorphDomWalker.walk(AbstractMetamorphDomWalker.java:104)
-	at org.metafacture.metamorph.Metamorph.buildPipeline(Metamorph.java:179)
-	... 16 more
-Caused by: java.net.MalformedURLException: no protocol: schemata/metamorph.xsd
-	at java.net.URL.<init>(URL.java:593)
-	at java.net.URL.<init>(URL.java:490)
-	at java.net.URL.<init>(URL.java:439)
-	at org.metafacture.commons.ResourceUtil.getUrl(ResourceUtil.java:144)
-	at org.metafacture.metamorph.xml.DomLoader.getSchemaUrl(DomLoader.java:113)
-	... 22 more
-----
