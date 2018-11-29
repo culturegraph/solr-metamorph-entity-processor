@@ -69,13 +69,13 @@ for module in $modules; do
 done
 ----
 
-==== Include Data Import Handler Add-Ons
+==== Include Data Import Handler Add-On
 
 ----
 mkdir -p SOLR_ROOT/lib/dih
 ----
 
-Copy the link:https://github.com/culturegraph/solr-metamorph-entity-processor/releases[latest release] JARs into `SOLR_ROOT/lib/dih`.
+Copy the link:https://github.com/culturegraph/solr-metamorph-entity-processor/releases[latest release] JAR into `SOLR_ROOT/lib/dih`.
 
 ==== Configure solrconfig.xml
 
